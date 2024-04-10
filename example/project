@@ -1,0 +1,15 @@
+
+name "Example"
+
+web {
+    port Env("PORT")
+    serve ./routes
+}
+
+database {
+    type "postgres"
+    username Env("DB_USERNAME", "example")
+    password Env("DB_PASSWORD", "example")
+    port     Env("DB_PORT", 5432)
+    database Env("DATABASE", "example")
+}

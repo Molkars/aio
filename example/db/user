@@ -1,0 +1,23 @@
+
+model User {
+    user_id: UUID,
+    username: String(32),
+    email: String,
+    password: Encrypted,
+    updated_at: DateTime?
+}
+
+query CurrentUser(current_user_id) {
+    SELECT ONE User(user_id, username, email)
+    WHERE user_id == #current_user_id
+}
+
+query Users(page) {
+    SELECT ALL User(user_id, username, email)
+}
+
+query Login(username, password) {
+    SELECT ONE User(user_id, username, email)
+    WHERE username == #username
+        AND password == #password
+}

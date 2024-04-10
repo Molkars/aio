@@ -1,0 +1,23 @@
+import db.user.CurrentUser
+import view.head.Head
+
+current_user_id = Cookie("X-Current-User-Id")
+
+if Some(current_user_id) {
+    current_user = database.query(CurrentUser(current_user_id))
+}
+
+statusCode = 200
+body = html {
+    <html>
+    #Head("Example")
+    <body>
+        <h1>Welcome!</h1>
+        #if Some(current_user) {
+            <h2>Hello, #(current_user.username)</h2>
+        } else {
+            <h2>This is an example</h2>
+        }
+    </body>
+    </html>
+}

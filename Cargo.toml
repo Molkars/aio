@@ -1,0 +1,16 @@
+[package]
+name = "aio"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0.81", features = ["backtrace"] }
+chrono = "0.4.37"
+clap = { version = "4.5.4", features = ["derive"] }
+hashbrown = "0.14.3"
+itertools = "0.12.1"
+pest = "2.7.9"
+pest_derive = "2.7.9"
+postgres = "0.19.7"
+thiserror = "1.0.58"
+uuid = { version = "1.8.0", features = ["fast-rng", "v4"] }
