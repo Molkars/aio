@@ -85,7 +85,7 @@ impl PairsPlus for Pairs<'_, Rule> {
 }
 
 pub mod model {
-    use pest::iterators::{Pair, Pairs};
+    use pest::iterators::{Pairs};
     use crate::pest::db::{NextResult, Rule};
 
     #[derive(Debug)]
@@ -205,7 +205,7 @@ pub mod qql {
     use std::str::FromStr;
     use anyhow::{anyhow, bail};
     use pest::iterators::{Pair, Pairs};
-    use crate::debug_write;
+    
     use crate::pest::db::{NextResult, PairsPlus, Rule};
 
     #[derive(Debug)]
@@ -276,7 +276,7 @@ pub mod qql {
     impl TryFrom<Pair<'_, Rule>> for Quantifier {
         type Error = anyhow::Error;
 
-        fn try_from(mut value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
+        fn try_from(value: Pair<'_, Rule>) -> Result<Self, Self::Error> {
             Ok(if let Rule::qql_expr = value.as_rule() {
                 let pairs = value.into_inner();
                 Quantifier::Expr(Expr::try_from(pairs)?)

@@ -7,7 +7,7 @@ web {
 }
 
 database {
-    type "postgres"
+    type Env("DB_TYPE", "postgres")
     username Env("DB_USERNAME", "example")
     password Env("DB_PASSWORD", "example")
     port     Env("DB_PORT", 5432)

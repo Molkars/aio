@@ -1,6 +1,5 @@
 use hashbrown::HashSet;
 use crate::db::Context;
-use crate::db::model::Model;
 use crate::db::validate::ValidationError;
 use crate::pest::db::qql;
 use crate::pest::db::query as pest;

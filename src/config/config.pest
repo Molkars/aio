@@ -9,7 +9,7 @@ attribute = {
 block = { "{" ~ (attribute)* ~ "}" }
 
 ident = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC|"_")* }
-number = @{ ASCII_DIGIT ~ (ASCII_DIGIT | "_")* }
+number = @{ "-"? ~ ASCII_DIGIT ~ (ASCII_DIGIT | "_")* }
 
 string = ${ "\"" ~ string_inner ~ "\"" }
 string_inner = @{ string_char* }
