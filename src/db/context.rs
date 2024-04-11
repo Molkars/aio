@@ -19,11 +19,16 @@ impl Context {
         let database_type = db_config.get_string("type")?;
         let driver = match database_type.as_str() {
             "postgres" => {
-                let _username = db_config.get_string("username")?;
-                let _password = db_config.get_string("password")?;
-                let _port = db_config.get_int("port")?;
-                let _database = db_config.get_string("database")?;
-                Box::new(PostgresDriver)
+                let username = db_config.get_string("username")?;
+                let password = db_config.get_string("password")?;
+                let port = db_config.get_int::<u16>("port")?;
+                let database = db_config.get_string("database")?;
+                Box::new(PostgresDriver {
+                    username,
+                    password,
+                    port,
+                    database,
+                })
             }
             ty => return Err(FromConfigError::Custom(format!("invalid database type: {:?}", ty))),
         };

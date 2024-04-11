@@ -1,4 +1,6 @@
+use std::any::type_name;
 use std::borrow::Cow;
+use std::fmt::Display;
 use std::rc::{Rc, Weak};
 use crate::config::Context;
 use std::ops::Deref;
@@ -192,17 +194,26 @@ impl Group {
         }
     }
 
-    pub fn get_int(&self, key: impl AsRef<str>) -> Result<i64, EvaluationError> {
+    pub fn get_int<T>(&self, key: impl AsRef<str>) -> Result<T, EvaluationError>
+        where T: TryFrom<i64>,
+              T::Error: Display
+    {
         let key = key.as_ref();
         let value = self.eval(key)?;
-        match value {
-            Cow::Owned(Value::Int(value)) => Ok(value),
-            Cow::Borrowed(Value::Int(value)) => Ok(*value),
-            _ => Err(EvaluationError::ExpectedValue {
+        let value = match value {
+            Cow::Owned(Value::Int(value)) => value,
+            Cow::Borrowed(Value::Int(value)) => *value,
+            _ => return Err(EvaluationError::ExpectedValue {
                 key: key.to_owned(),
                 type_: "string".to_owned(),
             })
-        }
+        };
+
+        T::try_from(value)
+            .map_err(|e| EvaluationError::EvaluationError {
+                function: "<core>".to_owned(),
+                message: format!("unable to convert i64 into {}: {}", type_name::<T>(), e),
+            })
     }
 
     pub fn get_path(&self, key: impl AsRef<str>) -> Result<PathBuf, EvaluationError> {
