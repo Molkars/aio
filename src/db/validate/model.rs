@@ -3,15 +3,16 @@ use crate::db::Context;
 use crate::db::model::{Model, ModelField};
 use crate::db::types::TypeStore;
 use crate::db::validate::ValidationError;
+use crate::parser::Ident;
 use crate::pest::db::model as pest;
 
-pub(super) fn validate(context: &Context, model: &pest::Model) -> crate::db::validate::Result<()> {
+pub fn validate(context: &Context, model: &pest::Model) -> crate::db::validate::Result<()> {
     let mut new_model = Model {
         name: model.name.clone(),
         fields: Vec::new(),
     };
 
-    let mut field_names = HashSet::<String>::new();
+    let mut field_names = HashSet::<Ident>::new();
     for field in model.fields.iter() {
         if field_names.contains(field.name.as_str()) {
             return Err(ValidationError::DuplicateField {
@@ -32,7 +33,7 @@ pub(super) fn validate(context: &Context, model: &pest::Model) -> crate::db::val
     Ok(())
 }
 
-fn validate_field(
+pub fn validate_field(
     type_store: &TypeStore,
     model: &pest::Model,
     field: &pest::ModelField,
@@ -45,7 +46,9 @@ fn validate_field(
         })?;
 
     Ok(ModelField {
-        name: model.name.clone(),
-        type_,
+        name: field.name.clone(),
+        repr: type_,
+        optional: field.type_.optional,
+        arg: field.type_.arg,
     })
 }

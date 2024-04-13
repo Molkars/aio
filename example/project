@@ -8,6 +8,8 @@ web {
 
 database {
     type Env("DB_TYPE", "postgres")
+    path ./db
+    host Env("DB_HOST", "localhost")
     username Env("DB_USERNAME", "example")
     password Env("DB_PASSWORD", "example")
     port     Env("DB_PORT", 5432)

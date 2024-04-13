@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::rc::Rc;
 use hashbrown::HashMap;
 
@@ -28,16 +29,44 @@ impl TypeStore {
     }
 }
 
-pub trait Type {}
+pub enum DataType {
+    UUID,
+    String,
+    DateTime,
+}
 
+pub trait Type: Debug {
+    fn data_type(&self) -> DataType;
+}
+
+#[derive(Debug)]
 pub struct UuidType;
-impl Type for UuidType {}
+impl Type for UuidType {
+    fn data_type(&self) -> DataType {
+        DataType::UUID
+    }
+}
 
+#[derive(Debug)]
 pub struct StringType;
-impl Type for StringType {}
+impl Type for StringType {
+    fn data_type(&self) -> DataType {
+        DataType::String
+    }
+}
 
+#[derive(Debug)]
 pub struct DateTimeType;
-impl Type for DateTimeType {}
+impl Type for DateTimeType {
+    fn data_type(&self) -> DataType {
+        DataType::DateTime
+    }
+}
 
+#[derive(Debug)]
 pub struct EncryptedType;
-impl Type for EncryptedType {}
+impl Type for EncryptedType {
+    fn data_type(&self) -> DataType {
+        DataType::String
+    }
+}

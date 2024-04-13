@@ -12,7 +12,7 @@ query CurrentUser(current_user_id) {
     WHERE user_id == #current_user_id
 }
 
-query Users(page) {
+query Users() {
     SELECT ALL User(user_id, username, email)
 }
 

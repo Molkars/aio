@@ -12,6 +12,8 @@ pub enum FromConfigError {
     },
     #[error("evaluation error: {0}")]
     EvaluationError(#[from] EvaluationError),
+    #[error("io error: {0}")]
+    IoError(#[from] std::io::Error),
     #[error("error: {0}")]
     Custom(String),
 }

@@ -1,8 +1,10 @@
 use std::rc::Rc;
 use crate::db::types::Type;
+use crate::parser::Ident;
 
+#[derive(Debug, Clone)]
 pub struct Model {
-    pub name: String,
+    pub name: Ident,
     pub fields: Vec<ModelField>,
 }
 
@@ -15,7 +17,10 @@ impl Model {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct ModelField {
-    pub name: String,
-    pub type_: Rc<dyn Type>,
+    pub name: Ident,
+    pub repr: Rc<dyn Type>,
+    pub optional: bool,
+    pub arg: Option<u64>,
 }

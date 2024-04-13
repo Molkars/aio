@@ -1,6 +1,6 @@
 use std::any::type_name;
 use std::borrow::Cow;
-use std::fmt::Display;
+use std::fmt::{Debug, Display, Formatter};
 use std::rc::{Rc, Weak};
 use crate::config::Context;
 use std::ops::Deref;
@@ -15,13 +15,29 @@ use crate::config::error::EvaluationError;
 #[grammar = "src/config/config.pest"]
 pub struct ConfigParser;
 
-#[derive(Debug)]
-pub struct Config(Group);
+pub struct Config {
+    inner: Group,
+    pub context: Rc<Context>,
+    pub root: PathBuf,
+}
 
-impl Context {
-    pub fn parse_config(self: &Rc<Self>, s: &str) -> anyhow::Result<Config> {
-        let content = ConfigParser::parse(Rule::file, s)?
+impl Debug for Config {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Config")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
+impl Config {
+    pub fn from_directory(file: PathBuf) -> anyhow::Result<Self> {
+        let file = file.canonicalize()?;
+
+        let config_file = file.join("project");
+        let content = std::fs::read_to_string(config_file)?;
+        let content = ConfigParser::parse(Rule::file, content.as_str())?
             .next().unwrap().into_inner();
+        let context = Context::new();
 
         let mut out = Group::default();
         for inner in content {
@@ -31,11 +47,15 @@ impl Context {
 
             let mut inner = inner.into_inner();
             let name = inner.next().unwrap().as_str().to_owned();
-            let value = parse_value(inner.next().unwrap(), self.clone())?;
+            let value = parse_value(inner.next().unwrap(), context.clone())?;
             out.inner.insert(name, value);
         }
 
-        Ok(Config(out))
+        Ok(Config {
+            inner: out,
+            context,
+            root: file,
+        })
     }
 }
 
@@ -43,7 +63,7 @@ impl Deref for Config {
     type Target = Group;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.inner
     }
 }
 

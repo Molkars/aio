@@ -14,5 +14,30 @@ pub enum Command {
     },
     Build {
         path: PathBuf,
+    },
+    Db {
+        #[command(subcommand)]
+        command: DatabaseCommand,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum DatabaseCommand {
+    Query {
+        expression: String,
+    },
+    Migrate  {
+        #[command(subcommand)]
+        command: DatabaseMigrationCommand
+    },
+}
+
+#[derive(Subcommand, Clone)]
+pub enum DatabaseMigrationCommand {
+    Up {
+
+    },
+    Down {
+
     }
 }
