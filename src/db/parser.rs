@@ -446,6 +446,7 @@ pub mod qql {
         Number(u64),
         Interp(Ident),
         Field(Option<Ident>, Ident),
+        Group(Box<Expr>),
     }
 
     impl<'a> QQLParser<'a> {
@@ -585,6 +586,12 @@ pub mod qql {
                 Ok(Some(ident))
             })? {
                 return Ok(Expr::Interp(ident));
+            }
+
+            if self.inner.take('(') {
+                let inner = self.parse_qql_expression()?;
+                self.inner.expect(')')?;
+                return Ok(Expr::Group(Box::new(inner)))
             }
 
             Err(ParseError::new("expected primary expression", self.location))

@@ -102,6 +102,7 @@ impl<'a> QueryContext<'a> {
                     })
                 }
             }
+            qql::Expr::Group(inner) => self.validate_expr(inner.as_ref()),
         }
     }
 }
