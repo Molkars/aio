@@ -34,7 +34,6 @@ pub fn validate_database(db_context: &db::Context) -> anyhow::Result<()> {
 
         let content = std::fs::read_to_string(file.path())?;
         let qql_ast: QQLFile = content.parse()?;
-        println!("{qql_ast:?}");
         validate_file(&db_context, &qql_ast)?;
     }
     Ok(())
