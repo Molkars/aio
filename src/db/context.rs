@@ -4,7 +4,7 @@ use hashbrown::HashMap;
 use crate::config;
 use crate::config::error::FromConfigError;
 use crate::db::backend::{Driver, PostgresDriver};
-use crate::db::model::Model;
+use crate::db::ast::Model;
 use crate::db::types::TypeStore;
 use crate::parser::Ident;
 

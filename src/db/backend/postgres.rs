@@ -1,7 +1,7 @@
 use anyhow::Context as _Context;
 use postgres::{Client, Config, NoTls};
 use crate::db::backend::Driver;
-use crate::db::model::{Model, ModelField};
+use crate::db::ast::{Model, ModelField};
 use crate::db::types::{DataType};
 
 pub struct PostgresDriver {

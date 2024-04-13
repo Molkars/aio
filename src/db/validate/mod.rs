@@ -4,7 +4,7 @@ pub mod query;
 
 pub use error::ValidationError;
 use crate::db;
-use crate::pest::db::QQLFile;
+use crate::db::parser::QQLFile;
 
 pub type Result<T> = core::result::Result<T, ValidationError>;
 

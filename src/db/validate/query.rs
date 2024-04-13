@@ -1,11 +1,10 @@
 use hashbrown::HashSet;
-use crate::db::Context;
+use crate::db::{Context, parser};
+use crate::db::parser::qql;
 use crate::db::validate::ValidationError;
 use crate::parser::Ident;
-use crate::pest::db::qql;
-use crate::pest::db::query as pest;
 
-pub(crate) fn validate(context: &Context, query: &pest::Query) -> super::Result<()> {
+pub(crate) fn validate(context: &Context, query: &parser::Query) -> super::Result<()> {
     let mut args = HashSet::<Ident>::new();
     for arg in &query.args {
         if args.contains(arg) {
@@ -35,7 +34,7 @@ pub(crate) fn validate(context: &Context, query: &pest::Query) -> super::Result<
 
 struct QueryContext<'a> {
     context: &'a Context,
-    query: &'a pest::Query,
+    query: &'a parser::Query,
     args: &'a HashSet<Ident>,
 
     principal_model: Option<Ident>,

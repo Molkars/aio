@@ -1,12 +1,12 @@
 use hashbrown::HashSet;
 use crate::db::Context;
-use crate::db::model::{Model, ModelField};
+use crate::db::ast::{Model, ModelField};
 use crate::db::types::TypeStore;
 use crate::db::validate::ValidationError;
 use crate::parser::Ident;
-use crate::pest::db::model as pest;
+use crate::db::parser;
 
-pub fn validate(context: &Context, model: &pest::Model) -> crate::db::validate::Result<()> {
+pub fn validate(context: &Context, model: &parser::Model) -> crate::db::validate::Result<()> {
     let mut new_model = Model {
         name: model.name.clone(),
         fields: Vec::new(),
@@ -35,8 +35,8 @@ pub fn validate(context: &Context, model: &pest::Model) -> crate::db::validate::
 
 pub fn validate_field(
     type_store: &TypeStore,
-    model: &pest::Model,
-    field: &pest::ModelField,
+    model: &parser::Model,
+    field: &parser::ModelField,
 ) -> crate::db::validate::Result<ModelField> {
     let type_ = type_store.get(&field.type_.name)
         .ok_or_else(|| ValidationError::UnknownFieldType {

@@ -9,7 +9,7 @@ use crate::cli::{CLI, Command, DatabaseCommand};
 use crate::config::Config;
 use crate::db::migrate::{migrate_down, migrate_up};
 use crate::db::validate::validate_database;
-use crate::pest::db::QQLFile;
+use crate::db::parser::QQLFile;
 
 mod cli;
 mod pest;
