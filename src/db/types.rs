@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::hash::Hash;
 use std::rc::Rc;
 use hashbrown::HashMap;
 
@@ -39,7 +40,7 @@ pub trait Type: Debug {
     fn data_type(&self) -> DataType;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct UuidType;
 impl Type for UuidType {
     fn data_type(&self) -> DataType {
@@ -47,7 +48,7 @@ impl Type for UuidType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct StringType;
 impl Type for StringType {
     fn data_type(&self) -> DataType {
@@ -55,7 +56,7 @@ impl Type for StringType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct DateTimeType;
 impl Type for DateTimeType {
     fn data_type(&self) -> DataType {
@@ -63,7 +64,7 @@ impl Type for DateTimeType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash)]
 pub struct EncryptedType;
 impl Type for EncryptedType {
     fn data_type(&self) -> DataType {

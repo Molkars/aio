@@ -5,6 +5,7 @@ use std::rc::{Rc, Weak};
 use crate::config::Context;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
+use anyhow::Context as _Context;
 use hashbrown::HashMap;
 use crate::config::error::EvaluationError;
 use crate::parser::{Ident, ParseError, ParsePrimitive, Parser};
@@ -218,10 +219,12 @@ impl Deref for Config {
 
 impl Config {
     pub fn from_directory(file: PathBuf) -> anyhow::Result<Self> {
-        let file = file.canonicalize()?;
+        let file = file.canonicalize()
+            .with_context(|| format!("unable to canonicalize config file directory: {}", file.display()))?;
 
         let config_file = file.join("project");
-        let content = std::fs::read_to_string(config_file)?;
+        let content = std::fs::read_to_string(config_file)
+            .context("unable to read config file")?;
         let context = Context::new();
         let mut parser = ConfigParser::new(context, content.as_str());
 

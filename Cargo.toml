@@ -4,10 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ahash = { version = "0.8.11", default-features = false, features = ["serde", "std", "compile-time-rng"] }
 anyhow = { version = "1.0.81", features = ["backtrace"] }
 chrono = "0.4.37"
 clap = { version = "4.5.4", features = ["derive"] }
-hashbrown = "0.14.3"
+hashbrown = { version = "0.14.3", features = ["serde"] }
 postgres = "0.19.7"
+ron = "0.8.1"
+serde = "1.0.197"
+serde_derive = "1.0.197"
 thiserror = "1.0.58"
 uuid = { version = "1.8.0", features = ["fast-rng", "v4"] }

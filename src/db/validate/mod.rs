@@ -12,13 +12,13 @@ pub fn validate_file(
     context: &db::Context,
     file: &QQLFile,
 ) -> Result<()> {
-    file.models
-        .values()
-        .try_for_each(|model| model::validate(context, model))?;
+    for model in file.models.values() {
+        model::validate(context, model)?;
+    }
 
-    file.queries
-        .values()
-        .try_for_each(|query| query::validate(context, query))?;
+    for query in file.queries.values() {
+        query::validate(context, query)?;
+    }
 
     Ok(())
 }

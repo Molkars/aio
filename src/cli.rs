@@ -6,12 +6,8 @@ pub struct CLI {
     #[command(subcommand)]
     pub command: Command,
 
-    #[arg(short, long, global=true, default_value="current_dir()")]
+    #[arg(short, long, global=true, default_value="./")]
     pub path: PathBuf,
-}
-
-fn current_dir() -> PathBuf {
-    std::env::current_dir().unwrap()
 }
 
 #[derive(Subcommand, Clone)]
@@ -39,10 +35,6 @@ pub enum DatabaseCommand {
 
 #[derive(Subcommand, Clone)]
 pub enum DatabaseMigrationCommand {
-    Up {
-
-    },
-    Down {
-
-    }
+    Up {},
+    Down {}
 }
