@@ -12,7 +12,6 @@ use crate::db::validate::validate_database;
 use crate::db::parser::QQLFile;
 
 mod cli;
-mod pest;
 mod db;
 mod config;
 mod parser;

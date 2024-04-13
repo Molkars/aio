@@ -21,12 +21,14 @@ impl<'a> Deref for QQLParser<'a> {
 }
 
 impl<'a> QQLParser<'a> {
+    pub fn whitespace(parser: &mut Parser) {
+        while parser.take(|c| char::is_ascii_whitespace(&c)) {}
+    }
+
     pub fn new(s: &'a str) -> Self {
         QQLParser {
             inner: Parser::new(s)
-                .with_whitespace(|parser| {
-                    while parser.take(|c| char::is_ascii_whitespace(&c)) {}
-                })
+                .with_whitespace(Self::whitespace)
         }
     }
 
@@ -51,11 +53,11 @@ impl<'a> QQLParser<'a> {
         where T::Error: Display
     {
         self.inner.atomic(|parser| {
+            let start = parser.location;
             if !parser.take(|c| char::is_ascii_digit(&c)) {
                 return Ok(None);
             }
 
-            let start = parser.location;
             while parser.take(|c| char::is_ascii_digit(&c) || c == '_') {}
             let end = parser.location.index;
             let lex = parser.source[start.index..end]

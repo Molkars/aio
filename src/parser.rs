@@ -144,6 +144,17 @@ impl<'a> Parser<'a> {
             Err(ParseError::new_spanned(format!("Expected {:?}", p), self.location, p.len()))
         }
     }
+
+    #[inline]
+    pub fn peek_char(&self) -> Option<char> {
+        self.remaining().chars().next()
+    }
+
+    #[inline]
+    pub fn take_char(&mut self) -> Option<char> {
+        self.peek_char()
+            .inspect(|c| self.location.advance(*c))
+    }
 }
 
 pub trait ParsePrimitive {

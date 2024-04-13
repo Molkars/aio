@@ -1,4 +1,5 @@
 use thiserror::Error;
+use crate::parser::Ident;
 
 #[derive(Debug, Error)]
 pub enum FromConfigError {
@@ -50,7 +51,7 @@ pub enum EvaluationError {
     },
     #[error("unknown function {name:?}")]
     UnknownFunction {
-        name: String,
+        name: Ident,
     },
     #[error("{function}: {issue}")]
     ArgumentIssue {
