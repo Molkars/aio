@@ -5,15 +5,20 @@ use clap::{Parser, Subcommand};
 pub struct CLI {
     #[command(subcommand)]
     pub command: Command,
+
+    #[arg(short, long, global=true, default_value="current_dir()")]
+    pub path: PathBuf,
+}
+
+fn current_dir() -> PathBuf {
+    std::env::current_dir().unwrap()
 }
 
 #[derive(Subcommand, Clone)]
 pub enum Command {
     Check {
-        path: PathBuf,
     },
     Build {
-        path: PathBuf,
     },
     Db {
         #[command(subcommand)]

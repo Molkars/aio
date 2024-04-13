@@ -20,27 +20,26 @@ fn main() -> anyhow::Result<()> {
     let cli = <CLI as clap::Parser>::parse();
 
     match &cli.command {
-        Command::Check { path } => check(path),
-        Command::Build { path } => build(path),
+        Command::Check { } => check(&cli.path),
+        Command::Build { } => build(&cli.path),
         Command::Db { command: DatabaseCommand::Query { expression } } => {
-            let path = std::env::current_dir()?;
-            let config = Config::from_directory(path.to_path_buf())?;
+            let config = Config::from_directory(cli.path.clone())?;
             let db_context = db::Context::from_config(&config)?;
 
             let path = expression.split('.').collect::<Vec<_>>();
             let (query_expr, query_path) = path.split_last()
                 .context("expected path to query: db.example.GetExample()")?;
 
-            // todo: use the actual parser
-            let query_name = query_expr.strip_suffix("()").unwrap();
-
             let mut file_path = db_context.path.clone();
             for link in query_path {
                 file_path = file_path.join(link);
             }
-            println!("reading file: {}", file_path.display());
-            let content: QQLFile = std::fs::read_to_string(file_path)?.parse()?;
-            let query = content.queries.get(query_name)
+            let file: QQLFile = std::fs::read_to_string(file_path)?.parse()?;
+            db::validate::validate_file(&db_context, &file)?;
+
+            // todo: use the actual parser
+            let query_name = query_expr.strip_suffix("()").unwrap();
+            let query = file.queries.get(query_name)
                 .ok_or_else(|| anyhow!("no query named {:?} in {}", query_expr, query_path.join(".")))?;
 
             println!("{query:#?}");
