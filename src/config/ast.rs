@@ -196,7 +196,7 @@ impl<'a> ConfigParser<'a> {
 }
 
 pub struct Config {
-    inner: Group,
+    inner: Section,
     pub context: Rc<Context>,
     pub root: PathBuf,
 }
@@ -210,7 +210,7 @@ impl Debug for Config {
 }
 
 impl Deref for Config {
-    type Target = Group;
+    type Target = Section;
 
     fn deref(&self) -> &Self::Target {
         &self.inner
@@ -228,7 +228,7 @@ impl Config {
         let context = Context::new();
         let mut parser = ConfigParser::new(context, content.as_str());
 
-        let mut out = Group::default();
+        let mut out = Section::default();
         while !parser.inner.at_end() {
             let name = parser.parse_ident()
                 .ok_or_else(|| ParseError::new(
@@ -249,7 +249,7 @@ impl Config {
 
 #[derive(Debug, Clone)]
 pub enum Value {
-    Group(Group),
+    Section(Section),
     Function(Function),
     String(String),
     Int(i64),
@@ -258,8 +258,8 @@ pub enum Value {
 
 impl<'a> ConfigParser<'a> {
     pub fn parse_value(&mut self) -> Result<Value, ParseError> {
-        if let Some(group) = self.parse_group()? {
-            Ok(Value::Group(group))
+        if let Some(section) = self.parse_section()? {
+            Ok(Value::Section(section))
         } else if let Some(string) = self.parse_string()? {
             Ok(Value::String(string))
         } else if let Some(int) = self.parse_int()? {
@@ -270,7 +270,7 @@ impl<'a> ConfigParser<'a> {
             Ok(Value::Path(path))
         } else {
             Err(ParseError::new(
-                "Expected value: group, string, integer, function, or path",
+                "Expected value: section, string, integer, function, or path",
                 self.inner.location,
             ))
         }
@@ -298,7 +298,7 @@ macro_rules! as_impl {
 }
 
 impl Value {
-    as_impl!(as_group, as_group_mut: Group => Group);
+    as_impl!(as_section, as_section_mut: Section => Section);
     as_impl!(as_function, as_function_mut: Function => Function);
     as_impl!(as_string, as_string_mut: String => String);
     as_impl!(as_int, as_int_mut: Int => i64);
@@ -329,18 +329,18 @@ impl<'a> ConfigParser<'a> {
 }
 
 #[derive(Default, Debug, Clone)]
-pub struct Group {
+pub struct Section {
     context: Weak<Context>,
     inner: HashMap<Ident, Value>,
 }
 
 impl<'a> ConfigParser<'a> {
-    pub fn parse_group(&mut self) -> Result<Option<Group>, ParseError> {
+    pub fn parse_section(&mut self) -> Result<Option<Section>, ParseError> {
         if !self.inner.take('{') {
             return Ok(None);
         }
 
-        let mut out = Group {
+        let mut out = Section {
             inner: HashMap::default(),
             context: Rc::downgrade(&self.context),
         };
@@ -360,7 +360,7 @@ impl<'a> ConfigParser<'a> {
     }
 }
 
-impl Group {
+impl Section {
     #[inline]
     pub fn get_raw(&self, key: impl AsRef<str>) -> Option<&Value> {
         self.inner.get(key.as_ref())
@@ -382,13 +382,13 @@ impl Group {
         }
     }
 
-    pub fn get_group(&self, key: impl AsRef<str>) -> Result<&Group, EvaluationError> {
+    pub fn get_section(&self, key: impl AsRef<str>) -> Result<&Section, EvaluationError> {
         let key = key.as_ref();
         match self.get_raw(key) {
-            Some(Value::Group(group)) => Ok(group),
+            Some(Value::Section(section)) => Ok(section),
             _ => Err(EvaluationError::ExpectedValue {
                 key: key.to_owned(),
-                type_: "group".to_owned(),
+                type_: "section".to_owned(),
             })
         }
     }

@@ -2,7 +2,7 @@
 name "Example"
 
 web {
-    port Env("PORT")
+    port Env("WEB_PORT", 8080)
     serve ./routes
 }
 

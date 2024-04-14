@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-ahash = { version = "0.8.11", default-features = false, features = ["serde", "std", "compile-time-rng"] }
+ahash = { version = "0.8.11", default-features = false, features = ["std", "no-rng"] }
 anyhow = { version = "1.0.81", features = ["backtrace"] }
 chrono = "0.4.37"
 clap = { version = "4.5.4", features = ["derive"] }

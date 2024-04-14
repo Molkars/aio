@@ -13,14 +13,16 @@ mod config;
 mod db;
 mod parser;
 mod util;
+mod simpl;
+mod web;
 
 fn main() -> anyhow::Result<()> {
     let mut cli = <CLI as clap::Parser>::parse();
     cli.path = cli.path.canonicalize()?;
 
     match &cli.command {
-        Command::Check { } => check(&cli.path),
-        Command::Build { } => build(&cli.path),
+        Command::Check {} => check(&cli.path),
+        Command::Build {} => build(&cli.path),
         Command::Db { command: DatabaseCommand::Query { expression } } => {
             let config = Config::from_directory(cli.path.clone())?;
             let db_context = db::Context::from_config(&config)?;
@@ -68,6 +70,9 @@ fn check(path: &Path) -> anyhow::Result<()> {
     let db_context = db::Context::from_config(&config)?;
     db::validate::validate_database(&db_context)?;
 
+    let web_context = web::Context::from_config(&config)?;
+    web::validate::validate(&web_context);
+
     Ok(())
 }
 
@@ -78,8 +83,6 @@ fn build(path: &Path) -> anyhow::Result<()> {
 
     let db_context = db::Context::from_config(&config)?;
     db::validate::validate_database(&db_context)?;
-    // db::cache::cache(&db_context)?;
-    db::migrate::migrate_down(&db_context)?;
     db::migrate::migrate_up(&db_context)?;
 
     Ok(())

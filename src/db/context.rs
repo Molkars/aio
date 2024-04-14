@@ -17,7 +17,7 @@ pub struct Context {
 
 impl Context {
     pub fn from_config(config: &config::Config) -> Result<Self, FromConfigError> {
-        let db_config = config.get_group("database")?;
+        let db_config = config.get_section("database")?;
         let mut path = db_config.get_path("path")?;
         if path.is_relative() {
             path = config.root.join(&path);

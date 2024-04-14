@@ -35,6 +35,6 @@ pub enum DatabaseCommand {
 
 #[derive(Subcommand, Clone)]
 pub enum DatabaseMigrationCommand {
-    Up {},
-    Down {}
+    Up,
+    Down,
 }

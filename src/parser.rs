@@ -3,8 +3,10 @@ use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
 mod ident;
+mod section;
 
 pub use ident::Ident;
+pub use section::Section;
 
 #[derive(Clone)]
 pub struct Parser<'a> {
@@ -234,4 +236,3 @@ impl<T: FnOnce(char) -> bool> ParsePrimitive for T {
         1
     }
 }
-

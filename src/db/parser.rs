@@ -168,12 +168,10 @@ impl<'a> QQLParser<'a> {
 
     #[inline]
     fn atomic<T>(&mut self, f: impl Fn(&mut Self) -> Result<T, ParseError>) -> Result<T, ParseError> {
-        self.inner.atomic(|parser| {
-            let mut inner = QQLParser { inner: parser.clone() };
-            let value = f(&mut inner);
-            parser.location = inner.location;
-            value
-        })
+        let whitespace = self.inner.whitespace.take();
+        let value = f(self);
+        self.inner.whitespace = whitespace;
+        value
     }
 }
 
