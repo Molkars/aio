@@ -3,10 +3,8 @@ use std::fmt::{Debug, Display, Formatter};
 use std::rc::Rc;
 
 mod ident;
-mod section;
 
 pub use ident::Ident;
-pub use section::Section;
 
 #[derive(Clone)]
 pub struct Parser<'a> {
@@ -116,7 +114,7 @@ impl<'a> Parser<'a> {
         self.location.index >= self.source.len()
     }
 
-    fn whitespace(&mut self) {
+    pub fn whitespace(&mut self) {
         if let Some(whitespace) = self.whitespace.clone() {
             let mut parser = self.clone();
             parser.whitespace = None;

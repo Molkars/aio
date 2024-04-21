@@ -1,0 +1,151 @@
+SimplFile {
+    imports: [
+        Import {
+            path: [
+                "view",
+                "head",
+            ],
+            items: {
+                "head",
+            },
+        },
+    ],
+    statements: [
+        Binary(
+            Assign,
+            Ident(
+                "statusCode",
+            ),
+            Number(
+                200,
+            ),
+        ),
+        Binary(
+            Assign,
+            Ident(
+                "body",
+            ),
+            Html(
+                [
+                    Element(
+                        HtmlElement {
+                            name: "html",
+                            attributes: [],
+                            body: Some(
+                                [
+                                    Unescaped(
+                                        Unary(
+                                            Call(
+                                                [
+                                                    String(
+                                                        "Example",
+                                                    ),
+                                                ],
+                                            ),
+                                            Ident(
+                                                "head",
+                                            ),
+                                        ),
+                                    ),
+                                    Element(
+                                        HtmlElement {
+                                            name: "body",
+                                            attributes: [],
+                                            body: Some(
+                                                [
+                                                    Element(
+                                                        HtmlElement {
+                                                            name: "h1",
+                                                            attributes: [],
+                                                            body: Some(
+                                                                [
+                                                                    Text(
+                                                                        "Welcome!",
+                                                                    ),
+                                                                ],
+                                                            ),
+                                                        },
+                                                    ),
+                                                    Escaped(
+                                                        If(
+                                                            If {
+                                                                condition: Unary(
+                                                                    Call(
+                                                                        [
+                                                                            Ident(
+                                                                                "current_user",
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                    Ident(
+                                                                        "Some",
+                                                                    ),
+                                                                ),
+                                                                then: [
+                                                                    Html(
+                                                                        [
+                                                                            Element(
+                                                                                HtmlElement {
+                                                                                    name: "h2",
+                                                                                    attributes: [],
+                                                                                    body: Some(
+                                                                                        [
+                                                                                            Text(
+                                                                                                "Hello, ",
+                                                                                            ),
+                                                                                            Escaped(
+                                                                                                Unary(
+                                                                                                    Access(
+                                                                                                        "username",
+                                                                                                    ),
+                                                                                                    Ident(
+                                                                                                        "current_user",
+                                                                                                    ),
+                                                                                                ),
+                                                                                            ),
+                                                                                        ],
+                                                                                    ),
+                                                                                },
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ],
+                                                                otherwise: Some(
+                                                                    Block(
+                                                                        [
+                                                                            Html(
+                                                                                [
+                                                                                    Element(
+                                                                                        HtmlElement {
+                                                                                            name: "h2",
+                                                                                            attributes: [],
+                                                                                            body: Some(
+                                                                                                [
+                                                                                                    Text(
+                                                                                                        "This is an example",
+                                                                                                    ),
+                                                                                                ],
+                                                                                            ),
+                                                                                        },
+                                                                                    ),
+                                                                                ],
+                                                                            ),
+                                                                        ],
+                                                                    ),
+                                                                ),
+                                                            },
+                                                        ),
+                                                    ),
+                                                ],
+                                            ),
+                                        },
+                                    ),
+                                ],
+                            ),
+                        },
+                    ),
+                ],
+            ),
+        ),
+    ],
+}

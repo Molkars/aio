@@ -1,0 +1,14 @@
+use view.head.head
+
+statusCode = 200
+body = <html>
+    {! head("Example") }
+    <body>
+        <h1>Welcome!</h1>
+        { if Some(current_user) {
+            <h2>Hello, { current_user.username }</h2>
+        } else {
+            <h2>This is an example</h2>
+        } }
+    </body>
+</html>

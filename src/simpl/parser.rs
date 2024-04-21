@@ -1,19 +1,32 @@
 use std::fmt::{Debug, Display};
 use std::mem::swap;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use hashbrown::HashSet;
-use crate::parser::{Ident, ParseError, ParsePrimitive, Parser, Section};
+use crate::parser::{Ident, ParseError, ParsePrimitive, Parser};
 
 pub struct SimplParser<'a> {
     inner: Parser<'a>,
-
     imported_names: HashSet<Ident>,
 }
 
-#[derive(Default)]
+pub trait KeywordParser {
+    fn parse(&self, parser: &mut SimplParser) -> Result<Expr, ParseError>;
+}
+
+#[derive(Default, Debug)]
 pub struct SimplFile {
     imports: Vec<Import>,
-    statements: Vec<Stmt>,
+    statements: Vec<Expr>,
+}
+
+impl FromStr for SimplFile {
+    type Err = ParseError;
+
+    #[inline]
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        SimplParser::new(s).parse_file()
+    }
 }
 
 impl<'a> SimplParser<'a> {
@@ -35,6 +48,8 @@ impl<'a> SimplParser<'a> {
         while !self.inner.at_end() {
             if let Some(import) = self.parse_import()? {
                 out.imports.push(import);
+            } else if let Some(expr) = self.try_parse_expression()? {
+                out.statements.push(expr);
             } else {
                 return Err(ParseError::new(
                     "expected import or statement",
@@ -163,6 +178,18 @@ impl<'a> SimplParser<'a> {
         Ok(out)
     }
 
+    fn parse_terminated<T>(
+        &mut self,
+        terminator: impl ParsePrimitive + Copy,
+        parse_fn: impl Fn(&mut Self) -> Result<T, ParseError>,
+    ) -> Result<Vec<T>, ParseError> {
+        let mut out = Vec::new();
+        while !self.inner.at_end() && !self.inner.peek(terminator) {
+            out.push(parse_fn(self)?);
+        }
+        Ok(out)
+    }
+
     fn parse_until<T>(
         &mut self,
         terminal: impl ParsePrimitive + Copy,
@@ -178,10 +205,24 @@ impl<'a> SimplParser<'a> {
 
     #[inline]
     fn atomic<T>(&mut self, f: impl Fn(&mut Self) -> Result<T, ParseError>) -> Result<T, ParseError> {
+        self.inner.whitespace();
         let whitespace = self.inner.whitespace.take();
         let value = f(self);
         self.inner.whitespace = whitespace;
         value
+    }
+
+    #[inline]
+    fn lookahead<T>(&mut self, f: impl Fn(&mut Self) -> Result<T, ParseError>) -> Option<T> {
+        let start = self.inner.location;
+        let value = f(self);
+        match value {
+            Ok(value) => Some(value),
+            Err(_) => {
+                self.inner.location = start;
+                None
+            }
+        }
     }
 
     pub fn parse_path(&mut self) -> Result<Option<PathBuf>, ParseError> {
@@ -203,8 +244,91 @@ impl<'a> SimplParser<'a> {
             Ok(Some(path))
         })
     }
+
+    pub fn parse_string(&mut self) -> Result<Option<String>, ParseError> {
+        self.inner.atomic(|parser| {
+            let string_type;
+            if parser.take('"') {
+                string_type = '"';
+            } else if parser.take('\'') {
+                string_type = '\'';
+            } else {
+                return Ok(None);
+            }
+
+            let start = parser.location;
+            let mut previous_content_index = start.index;
+            let mut content = Option::<String>::None;
+            while !parser.at_end() && !parser.peek(string_type) {
+                if parser.take(|c| c != '\\') {
+                    continue;
+                }
+
+                // we need to fill the content string with previous normal characters
+                let content = content.get_or_insert_with(String::new);
+                content.push_str(&parser.source[previous_content_index..parser.location.index]);
+
+                let escape_location = parser.location;
+                parser.location.advance('\\');
+                let escaped_char = parser.take_char()
+                    .ok_or_else(|| ParseError::new("unterminated string, expected escape character after '\\'", parser.location))?;
+
+                match escaped_char {
+                    'n' => content.push('\n'),
+                    'r' => content.push('\r'),
+                    't' => content.push('\t'),
+                    '\\' => content.push('\\'),
+                    '\'' => content.push('\''),
+                    '"' => content.push('"'),
+                    'u' => {
+                        let Some(hex_digits) = parser.remaining().get(..4) else {
+                            return Err(ParseError::new_spanned(
+                                "Expected 4 hex-digits after \\u",
+                                escape_location,
+                                1 + (parser.location.index - escape_location.index),
+                            ));
+                        };
+
+                        let code = u32::from_str_radix(hex_digits, 16)
+                            .map_err(|e| ParseError::new_spanned(
+                                format!("Expected 4 hex-digits after \\u, instead found {:?}. ({})", hex_digits, e),
+                                escape_location,
+                                4 + (parser.location.index - escape_location.index),
+                            ))?;
+                        let char = char::from_u32(code)
+                            .ok_or_else(|| ParseError::new_spanned(
+                                format!("Invalid unicode escape, {} is not a valid character", hex_digits),
+                                escape_location,
+                                4 + (parser.location.index - escape_location.index),
+                            ))?;
+
+                        content.push(char);
+                    }
+                    _ => return Err(ParseError::new_spanned(
+                        r#"invalid escape character, expected "#,
+                        escape_location,
+                        parser.location.index - escape_location.index,
+                    )),
+                };
+
+                previous_content_index = parser.location.index;
+            }
+            parser.expect(string_type)?;
+
+            let content = match content {
+                Some(mut content) => {
+                    content.push_str(&parser.source[previous_content_index..parser.location.index]);
+                    content
+                }
+                None => parser.source[start.index..parser.location.index - 1].to_owned(),
+            };
+
+            Ok(Some(content))
+        })
+    }
 }
 
+#[derive(Debug)]
 pub struct Import {
     pub path: Vec<Ident>,
     pub items: HashSet<Ident>,
@@ -219,7 +343,7 @@ impl<'a> SimplParser<'a> {
         self.atomic(|parser| {
             let mut name = parser.parse_ident()
                 .ok_or_else(|| ParseError::new(
-                    "expected identifier",
+                    "expected module name",
                     parser.inner.location,
                 ))?;
 
@@ -263,7 +387,7 @@ impl<'a> SimplParser<'a> {
 
                 let mut link = parser.parse_ident()
                     .ok_or_else(|| ParseError::new(
-                        "expected identifier",
+                        "expected import item",
                         parser.inner.location,
                     ))?;
                 swap(&mut name, &mut link);
@@ -284,28 +408,25 @@ impl<'a> SimplParser<'a> {
     }
 }
 
-pub enum Stmt {
-    Expr(Expr),
-}
-
-impl<'a> SimplParser<'a> {
-    pub fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
-        self.try_parse_stmt()?
-            .ok_or_else(|| ParseError::new(
-                "Expected statement",
-                self.inner.location,
-            ))
-    }
-
-    pub fn try_parse_stmt(&mut self) -> Result<Option<Stmt>, ParseError> {
-        if let Some(expr) = self.try_parse_expression()? {
-            Ok(Some(Stmt::Expr(expr)))
-        } else {
-            Ok(None)
-        }
-    }
-}
-
+// impl<'a> SimplParser<'a> {
+//     pub fn parse_statement(&mut self) -> Result<Stmt, ParseError> {
+//         self.try_parse_statement()?
+//             .ok_or_else(|| ParseError::new(
+//                 "Expected statement",
+//                 self.inner.location,
+//             ))
+//     }
+//
+//     pub fn try_parse_statement(&mut self) -> Result<Option<Stmt>, ParseError> {
+//         if let Some(expr) = self.try_parse_expression()? {
+//             Ok(Some(Stmt::Expr(expr)))
+//         } else {
+//             Ok(None)
+//         }
+//     }
+// }
+//
+#[derive(Debug)]
 pub enum Expr {
     Binary(BinaryOp, Box<Expr>, Box<Expr>),
     Unary(UnaryOp, Box<Expr>),
@@ -317,25 +438,46 @@ pub enum Expr {
     Bool(bool),
     Path(PathBuf),
     Group(Box<Expr>),
-    Block(Block),
+    Block(Vec<Expr>),
+    Html(Vec<Section>),
+    Respond(Vec<(Ident, Expr)>),
 }
 
-pub struct Block {
-    pub name: Ident,
-    pub inner: Section,
+#[derive(Debug)]
+pub enum Section {
+    Element(HtmlElement),
+    Escaped(Expr),
+    Unescaped(Expr),
+    Text(String),
 }
 
+#[derive(Debug)]
+pub struct HtmlElement {
+    name: Ident,
+    attributes: Vec<(Ident, Option<AttributeValue>)>,
+    body: Option<Vec<Section>>,
+}
+
+#[derive(Debug)]
+pub enum AttributeValue {
+    String(String),
+    Expr(Expr),
+}
+
+#[derive(Debug)]
 pub struct If {
     pub condition: Box<Expr>,
-    pub then: Vec<Stmt>,
+    pub then: Vec<Expr>,
     pub otherwise: Option<Else>,
 }
 
+#[derive(Debug)]
 pub enum Else {
     If(Box<If>),
-    Block(Vec<Stmt>),
+    Block(Vec<Expr>),
 }
 
+#[derive(Debug)]
 pub enum BinaryOp {
     Mul,
     Div,
@@ -353,6 +495,7 @@ pub enum BinaryOp {
     Assign,
 }
 
+#[derive(Debug)]
 pub enum UnaryOp {
     Not,
     Negative,
@@ -367,7 +510,7 @@ impl<'a> SimplParser<'a> {
 
     #[inline]
     pub fn try_parse_expression(&mut self) -> Result<Option<Expr>, ParseError> {
-        let expr = self.parse_expression_or();
+        let expr = self.parse_expression_assign();
         match expr {
             Ok(expr) => Ok(Some(expr)),
             Err(err) if err.message == Self::PRIMARY_EXPR_ERROR => Ok(None),
@@ -379,9 +522,19 @@ impl<'a> SimplParser<'a> {
     pub fn parse_expression(&mut self) -> Result<Expr, ParseError> {
         let expr = self.try_parse_expression()?;
         expr.ok_or_else(|| ParseError::new(
-            "expected qql expression",
+            "expected expression",
             self.inner.location,
         ))
+    }
+
+    pub fn parse_expression_assign(&mut self) -> Result<Expr, ParseError> {
+        let expr = self.parse_expression_or()?;
+        if self.inner.take('=') {
+            let rhs = self.parse_expression_or()?;
+            Ok(Expr::Binary(BinaryOp::Assign, Box::new(expr), Box::new(rhs)))
+        } else {
+            Ok(expr)
+        }
     }
 
     pub fn parse_expression_or(&mut self) -> Result<Expr, ParseError> {
@@ -481,7 +634,7 @@ impl<'a> SimplParser<'a> {
         Ok(loop {
             if self.inner.take('.') {
                 let property = self.parse_ident()
-                    .ok_or_else(|| ParseError::new("expected identifier", self.inner.location))?;
+                    .ok_or_else(|| ParseError::new("expected property", self.inner.location))?;
                 expr = Expr::Unary(UnaryOp::Access(property), Box::new(expr));
             } else if self.inner.take('(') {
                 let args = self.parse_separated_terminated(')', ',', Self::parse_expression)?;
@@ -506,53 +659,7 @@ impl<'a> SimplParser<'a> {
             } else if ident == "false" {
                 Ok(Expr::Bool(false))
             } else if ident == "if" {
-                fn if_body(parser: &mut SimplParser) -> Result<If, ParseError> {
-                    let condition = parser.parse_expression()?;
-                    parser.inner.expect('{')?;
-                    let then = parser.parse_until('}', SimplParser::parse_statement)?;
-                    parser.inner.expect('}')?;
-
-                    let otherwise = if parser.take_keyword("else") {
-                        let else_ = if parser.take_keyword("if") {
-                            let body = if_body(parser)?;
-                            Else::If(Box::new(body))
-                        } else {
-                            parser.inner.expect('{')?;
-                            let body = parser.parse_until('}', SimplParser::parse_statement)?;
-                            parser.inner.expect('}')?;
-                            Else::Block(body)
-                        };
-                        Some(else_)
-                    } else {
-                        None
-                    };
-
-                    Ok(If {
-                        condition: Box::new(condition),
-                        then,
-                        otherwise,
-                    })
-                }
-
-                if_body(self).map(Expr::If)
-            } else if self.inner.take('{') {
-                let start = self.inner.location;
-                let inner = self.atomic(|parser| {
-                    while parser.inner.take(|c| c != '}') {}
-                    let end = parser.inner.location;
-                    parser.inner.expect('}')?;
-
-                    let content = parser.inner.source[start.index..end.index].to_owned();
-                    Ok(Section {
-                        content,
-                        location: start,
-                        length: end.index - start.index,
-                    })
-                })?;
-                Ok(Expr::Block(Block {
-                    name: ident,
-                    inner,
-                }))
+                self.parse_expression_if().map(Expr::If)
             } else {
                 Ok(Expr::Ident(ident))
             }
@@ -562,11 +669,253 @@ impl<'a> SimplParser<'a> {
         } else if let Some(path) = self.parse_path()? {
             Ok(Expr::Path(path))
         } else if self.inner.take('(') {
-            let inner = self.parse_expression()?;
-            self.inner.expect(')')?;
-            Ok(Expr::Group(Box::new(inner)))
+            if self.inner.peek('<') {
+                let html = self.parse_html_block()?;
+                self.inner.expect(')')?;
+                Ok(Expr::Html(html))
+            } else {
+                let inner = self.parse_expression()?;
+                self.inner.expect(')')?;
+                Ok(Expr::Group(Box::new(inner)))
+            }
+        } else if self.inner.take('{') {
+            let out = self.parse_terminated('}', Self::parse_expression)?;
+            self.inner.expect('}')?;
+            Ok(Expr::Block(out))
+        } else if let Some(str) = self.parse_string()? {
+            Ok(Expr::String(str))
+        } else if self.inner.take("<>") {
+            let html = self.parse_html_block()?;
+            self.inner.expect("</>")?;
+            Ok(Expr::Html(html))
+        } else if let Some(html) = self.parse_html_element()? {
+            Ok(Expr::Html(vec![ Section::Element(html) ]))
         } else {
             Err(ParseError::new("expected primary expression", self.inner.location))
         };
+    }
+
+    fn parse_expression_if(&mut self) -> Result<If, ParseError> {
+        let condition = self.parse_expression()?;
+        self.inner.expect('{')?;
+        let then = self.parse_until('}', SimplParser::parse_expression)?;
+        self.inner.expect('}')?;
+
+        let otherwise = if self.take_keyword("else") {
+            let else_ = if self.take_keyword("if") {
+                let body = self.parse_expression_if()?;
+                Else::If(Box::new(body))
+            } else {
+                self.inner.expect('{')?;
+                let body = self.parse_until('}', SimplParser::parse_expression)?;
+                self.inner.expect('}')?;
+                Else::Block(body)
+            };
+            Some(else_)
+        } else {
+            None
+        };
+
+        Ok(If {
+            condition: Box::new(condition),
+            then,
+            otherwise,
+        })
+    }
+
+    fn parse_html_block(&mut self) -> Result<Vec<Section>, ParseError> {
+        let mut out = Vec::new();
+        loop {
+            if let Some(elt) = self.parse_html_element()? {
+                out.push(Section::Element(elt));
+            } else if self.inner.take("{!") {
+                let expression = self.parse_expression()?;
+                out.push(Section::Unescaped(expression));
+                self.inner.expect('}')?;
+            } else if self.inner.take('{') {
+                let expression = self.parse_expression()?;
+                out.push(Section::Escaped(expression));
+                self.inner.expect('}')?;
+            } else {
+                break;
+            }
+        }
+
+        Ok(out)
+    }
+
+    fn parse_html_element(&mut self) -> Result<Option<HtmlElement>, ParseError> {
+        if !self.inner.take('<') {
+            return Ok(None);
+        }
+
+        let name = self.parse_ident()
+            .ok_or_else(|| ParseError::new("Expected tag name after '<'", self.inner.location))?;
+
+        let mut attributes = Vec::new();
+        while let Some(attr_name) = self.parse_ident() {
+            let value = if self.inner.take('=') {
+                Some(self.parse_html_attribute_value()?)
+            } else {
+                None
+            };
+            attributes.push((attr_name, value));
+        }
+
+        let body = if self.inner.take("/>") {
+            None
+        } else {
+            self.inner.expect(">")?;
+
+            let mut body = Vec::new();
+            while !self.inner.at_end() && !self.inner.peek("</") {
+                if let Some(elt) = self.parse_html_element()? {
+                    body.push(Section::Element(elt));
+                } else if self.inner.take("{!") {
+                    let expression = self.parse_expression()?;
+                    body.push(Section::Unescaped(expression));
+                    self.inner.expect('}')?;
+                } else if self.inner.take('{') {
+                    let expression = self.parse_expression()?;
+                    body.push(Section::Escaped(expression));
+                    self.inner.expect('}')?;
+                } else {
+                    let start = self.inner.location;
+                    while self.inner.take(|c: char| c != '<' && c != '{') {}
+                    let end = self.inner.location;
+                    let content = &self.inner.source[start.index..end.index];
+                    if !content.is_empty() {
+                        body.push(Section::Text(content.to_owned()));
+                    }
+                }
+            };
+
+            self.inner.expect("</")?;
+            self.expect_keyword(&name)?;
+            self.inner.expect(">")?;
+            Some(body)
+        };
+
+        Ok(Some(HtmlElement {
+            name,
+            attributes,
+            body,
+        }))
+    }
+
+    fn parse_html_attribute_value(&mut self) -> Result<AttributeValue, ParseError> {
+        if let Some(value) = self.parse_ident() {
+            Ok(AttributeValue::String(value.value))
+        } else if self.inner.take('{') {
+            let expr = self.parse_expression()?;
+            self.inner.expect('}')?;
+            Ok(AttributeValue::Expr(expr))
+        } else {
+            self.atomic(|parser| {
+                let string_char = if parser.inner.take('"') {
+                    '"'
+                } else if parser.inner.take('\'') {
+                    '\''
+                } else {
+                    return Err(ParseError::new(
+                        "Expected identifier or string after attribute '='",
+                        parser.inner.location,
+                    ));
+                };
+
+                let mut out = String::new();
+                while let Some(c) = parser.inner.peek_char() {
+                    if c == string_char {
+                        break;
+                    }
+
+                    let start = parser.inner.location;
+                    parser.inner.location.advance(c);
+                    if c != '&' {
+                        out.push(c);
+                        continue;
+                    }
+
+                    if parser.inner.take('#') {
+                        if parser.inner.take('x') || parser.inner.take('X') {
+                            let content = {
+                                let start = parser.inner.location;
+                                while parser.inner.take(|c: char| c != ';') {}
+                                let end = parser.inner.location;
+                                &parser.inner.source[start.index..end.index]
+                            };
+                            if !parser.inner.take(';') {
+                                return Err(ParseError::new(
+                                    "expected ';' after html character reference: like &#xFF80;",
+                                    start,
+                                ));
+                            }
+                            let end = parser.inner.location;
+
+                            let value = u32::from_str_radix(content, 16)
+                                .map_err(|e| ParseError::new_spanned(
+                                    format!("expected hexadecimal code point at {:?}: {}", content, e),
+                                    start,
+                                    end.index - start.index,
+                                ))?;
+                            let _char = char::from_u32(value)
+                                .ok_or_else(|| ParseError::new_spanned(
+                                    format!("hexadecimal escape {:?} is not a valid codepoint", content),
+                                    start,
+                                    end.index - start.index,
+                                ))?;
+                        } else {
+                            let content = {
+                                let start = parser.inner.location;
+                                while parser.inner.take(|c: char| c != ';') {}
+                                &parser.inner.source[start.index..parser.inner.location.index]
+                            };
+                            if !parser.inner.take(';') {
+                                return Err(ParseError::new(
+                                    "expected ';' after html character reference: like &#1234;",
+                                    start,
+                                ));
+                            }
+                            let end = parser.inner.location;
+
+                            let value = u32::from_str(content)
+                                .map_err(|e| ParseError::new_spanned(
+                                    format!("expected decimal code point at {:?}: {}", content, e),
+                                    start,
+                                    end.index - start.index,
+                                ))?;
+                            let _char = char::from_u32(value)
+                                .ok_or_else(|| ParseError::new_spanned(
+                                    format!("decimal escape {:?} is not a valid codepoint", content),
+                                    start,
+                                    end.index - start.index,
+                                ))?;
+                        }
+                    } else {
+                        let local_start = parser.inner.location;
+                        while parser.inner.take(|c: char| c.is_ascii_alphabetic()) {}
+                        let end = parser.inner.location;
+                        if end.index - local_start.index == 0 {
+                            return Err(ParseError::new(
+                                "expected named character reference after the '&' character",
+                                start,
+                            ));
+                        }
+
+                        if !parser.inner.take(';') {
+                            return Err(ParseError::new(
+                                "expected ';' after html named character reference: like &apos;",
+                                start,
+                            ));
+                        }
+                    }
+
+                    out.push_str(&parser.inner.source[start.index..parser.inner.location.index]);
+                }
+                parser.inner.expect(string_char)?;
+
+                Ok(AttributeValue::String(out))
+            })
+        }
     }
 }

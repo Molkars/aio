@@ -7,6 +7,7 @@ use std::path::{Path};
 use anyhow::{anyhow, Context};
 use crate::cli::{CLI, Command, DatabaseCommand, DatabaseMigrationCommand};
 use crate::config::Config;
+use crate::web::Service;
 
 mod cli;
 mod config;
@@ -67,11 +68,12 @@ fn main() -> anyhow::Result<()> {
 
 fn check(path: &Path) -> anyhow::Result<()> {
     let config = Config::from_directory(path.to_path_buf())?;
+
     let db_context = db::Context::from_config(&config)?;
     db::validate::validate_database(&db_context)?;
 
     let web_context = web::Context::from_config(&config)?;
-    web::validate::validate(&web_context);
+    web::validate::validate(&web_context)?;
 
     Ok(())
 }
@@ -84,6 +86,11 @@ fn build(path: &Path) -> anyhow::Result<()> {
     let db_context = db::Context::from_config(&config)?;
     db::validate::validate_database(&db_context)?;
     db::migrate::migrate_up(&db_context)?;
+
+    let web_context = web::Context::from_config(&config)?;
+    web::validate::validate(&web_context)?;
+    let service = Service::try_new(&web_context)?;
+    service.run()?;
 
     Ok(())
 }

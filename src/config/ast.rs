@@ -163,7 +163,7 @@ impl<'a> ConfigParser<'a> {
                 return Ok(None);
             }
 
-            while parser.take(|c| char::is_ascii_alphanumeric(&c) || c == '_') {}
+            while parser.take(|c| char::is_ascii_alphanumeric(&c) || c == '_' || c == '-') {}
 
             let value = parser.source[start.index..parser.location.index].to_owned();
             Ok(Some(Ident {

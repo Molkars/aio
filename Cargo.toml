@@ -9,9 +9,14 @@ anyhow = { version = "1.0.81", features = ["backtrace"] }
 chrono = "0.4.37"
 clap = { version = "4.5.4", features = ["derive"] }
 hashbrown = { version = "0.14.3", features = ["serde"] }
+http-body-util = "0.1.1"
+hyper = "1.3.1"
+hyper-util = { version = "0.1.3", features = ["http1", "server", "tokio"] }
+pollster = "0.3.0"
 postgres = "0.19.7"
 ron = "0.8.1"
 serde = "1.0.197"
 serde_derive = "1.0.197"
 thiserror = "1.0.58"
+tokio = { version = "1.37.0", features = ["rt-multi-thread", "fs", "signal", "macros"] }
 uuid = { version = "1.8.0", features = ["fast-rng", "v4"] }

@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use thiserror::Error;
 use crate::parser::Ident;
 
@@ -25,6 +26,11 @@ impl FromConfigError {
         Self::ExpectedItem {
             path: path.into(),
         }
+    }
+
+    #[inline]
+    pub fn custom(i: impl Display) -> Self {
+        Self::Custom(format!("{}", i))
     }
 }
 
