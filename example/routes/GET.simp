@@ -1,4 +1,5 @@
-use view.head.head
+import head.simp use head
+import util/util.simp
 
 statusCode = 200
 body = <html>

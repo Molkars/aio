@@ -89,7 +89,7 @@ fn build(path: &Path) -> anyhow::Result<()> {
 
     let web_context = web::Context::from_config(&config)?;
     web::validate::validate(&web_context)?;
-    let service = Service::try_new(&web_context)?;
+    let service = Service::try_new(web_context.clone())?;
     service.run()?;
 
     Ok(())

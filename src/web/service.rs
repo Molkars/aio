@@ -4,6 +4,7 @@ use std::io::{stdout, Write};
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use anyhow::anyhow;
 use hashbrown::HashMap;
 use http_body_util::Full;
 use hyper::{Request, Response, StatusCode};
@@ -14,11 +15,13 @@ use hyper_util::rt::TokioIo;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::select;
 use crate::simpl::parser::SimplFile;
+use crate::simpl::runtime::Runtime;
 use crate::web::Context;
 
 use crate::web::context::RouteMap;
 
 pub struct Service {
+    context: Arc<Context>,
     address: SocketAddr,
     router: Arc<Router>,
 }
@@ -46,13 +49,14 @@ impl Router {
 }
 
 impl Service {
-    pub fn try_new(context: &Context) -> anyhow::Result<Self> {
+    pub fn try_new(context: Arc<Context>) -> anyhow::Result<Self> {
         let mut router = Router::new();
         Self::build_router(&mut router.inner, &context.route_map)?;
 
         Ok(Self {
             address: context.address.clone(),
             router: Arc::new(router),
+            context,
         })
     }
 
@@ -77,8 +81,8 @@ impl Service {
 
         rt.block_on(async move {
             let router = self.router.clone();
-
             let addr = self.address;
+            let context = self.context;
             let listener = TcpListener::bind(&addr).await?;
             println!("listening on {}", addr);
             Self::print_router(router.as_ref())?;
@@ -101,8 +105,12 @@ impl Service {
 
                 let io = TokioIo::new(stream);
                 let routes = router.clone();
+                let context = context.clone();
                 tokio::spawn(async move {
-                    let handler_result = http.serve_connection(io, service_fn(move |req| service(req, routes.clone()))).await;
+                    let service = service_fn(
+                        move |req| service(req, context.clone(), routes.clone())
+                    );
+                    let handler_result = http.serve_connection(io, service).await;
 
                     match handler_result {
                         Ok(()) => {}
@@ -159,6 +167,7 @@ impl Service {
 }
 async fn service(
     req: Request<hyper::body::Incoming>,
+    context: Arc<Context>,
     routes: Arc<Router>,
 ) -> Result<Response<Full<Bytes>>, Infallible> {
     let path = req.uri().path();
@@ -185,9 +194,9 @@ async fn service(
         return Ok(not_found());
     };
 
-    let (sc, content) = match parse_file(path).await {
-        Ok(file) => {
-            (StatusCode::OK, format!("{:#?}", file))
+    let (sc, content) = match parse_file(context, path).await {
+        Ok(result) => {
+            (StatusCode::OK, result)
         }
         Err(e) => {
             (StatusCode::INTERNAL_SERVER_ERROR, if cfg!(debug_assertions) {
@@ -202,10 +211,14 @@ async fn service(
     return Ok(res);
 }
 
-async fn parse_file(path: &Path) -> anyhow::Result<SimplFile> {
+async fn parse_file(context: Arc<Context>, path: &Path) -> anyhow::Result<String> {
     let contents = tokio::fs::read_to_string(path).await?;
     let file: SimplFile = contents.parse()?;
-    Ok(file)
+
+    let mut runtime = Runtime::new(context.clone());
+    runtime.run(&file).await.map_err(|e| anyhow!("unable to run file: {e:?}"))?;
+
+    Ok(format!("{:#?}", file))
 }
 
 #[inline]

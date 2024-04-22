@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::net::{IpAddr, SocketAddr};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use crate::config;
 use crate::config::error::FromConfigError;
 
@@ -13,7 +14,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn from_config(config: &config::Config) -> Result<Self, FromConfigError> {
+    pub fn from_config(config: &config::Config) -> Result<Arc<Self>, FromConfigError> {
         let web_config = config.get_section("web")?;
 
         let host = web_config.get_string("host")?;
@@ -34,12 +35,12 @@ impl Context {
         let mut shared_code = CodeMap::default();
         build_code_map(code_dir.as_path(), &mut shared_code)?;
 
-        Ok(Context {
+        Ok(Arc::new(Context {
             address,
             serve_dir,
             route_map,
             shared_code,
-        })
+        }))
     }
 }
 
@@ -80,8 +81,8 @@ fn build_route_map(path: &Path, map: &mut RouteMap) -> Result<(), FromConfigErro
 
 #[derive(Default, Debug)]
 pub struct CodeMap {
-    files: BTreeMap<String, PathBuf>,
-    children: BTreeMap<String, CodeMap>,
+    pub files: BTreeMap<String, PathBuf>,
+    pub children: BTreeMap<String, CodeMap>,
 }
 
 fn build_code_map(path: &Path, map: &mut CodeMap) -> std::io::Result<()> {

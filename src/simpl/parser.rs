@@ -1,6 +1,7 @@
+use std::collections::LinkedList;
 use std::fmt::{Debug, Display};
-use std::mem::swap;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 use std::str::FromStr;
 use hashbrown::HashSet;
 use crate::parser::{Ident, ParseError, ParsePrimitive, Parser};
@@ -16,8 +17,8 @@ pub trait KeywordParser {
 
 #[derive(Default, Debug)]
 pub struct SimplFile {
-    imports: Vec<Import>,
-    statements: Vec<Expr>,
+    pub imports: Vec<Import>,
+    pub statements: Vec<Expr>,
 }
 
 impl FromStr for SimplFile {
@@ -204,7 +205,7 @@ impl<'a> SimplParser<'a> {
     }
 
     #[inline]
-    fn atomic<T>(&mut self, f: impl Fn(&mut Self) -> Result<T, ParseError>) -> Result<T, ParseError> {
+    fn atomic<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, ParseError>) -> Result<T, ParseError> {
         self.inner.whitespace();
         let whitespace = self.inner.whitespace.take();
         let value = f(self);
@@ -213,16 +214,14 @@ impl<'a> SimplParser<'a> {
     }
 
     #[inline]
-    fn lookahead<T>(&mut self, f: impl Fn(&mut Self) -> Result<T, ParseError>) -> Option<T> {
-        let start = self.inner.location;
+    fn inline<T>(&mut self, f: impl FnOnce(&mut Self) -> Result<T, ParseError>) -> Result<T, ParseError> {
+        let ws = self.inner.whitespace.clone();
+        self.inner.whitespace = Some(Rc::new(|parser| {
+            while parser.take(|c: char| c != '\n' && c.is_ascii_whitespace()) {}
+        }));
         let value = f(self);
-        match value {
-            Ok(value) => Some(value),
-            Err(_) => {
-                self.inner.location = start;
-                None
-            }
-        }
+        self.inner.whitespace = ws;
+        value
     }
 
     pub fn parse_path(&mut self) -> Result<Option<PathBuf>, ParseError> {
@@ -330,81 +329,92 @@ impl<'a> SimplParser<'a> {
 
 #[derive(Debug)]
 pub struct Import {
-    pub path: Vec<Ident>,
-    pub items: HashSet<Ident>,
+    pub path: LinkedList<Ident>,
+    pub file: Ident,
+    pub uses: Option<HashSet<Ident>>,
 }
 
 impl<'a> SimplParser<'a> {
     pub fn parse_import(&mut self) -> Result<Option<Import>, ParseError> {
-        if !self.take_keyword("use") {
+        if !self.inner.take("import") {
             return Ok(None);
         }
 
-        self.atomic(|parser| {
-            let mut name = parser.parse_ident()
-                .ok_or_else(|| ParseError::new(
-                    "expected module name",
-                    parser.inner.location,
-                ))?;
+        let (path, file) = self.atomic(|parser| {
+            let mut path = LinkedList::new();
 
-            let mut path = Vec::new();
-            let mut items = HashSet::new();
-            while parser.inner.take('.') {
-                if parser.inner.take('{') {
-                    let inner = parser.parse_separated_terminated(
-                        '}', ',',
-                        |parser| parser.parse_ident()
-                            .ok_or_else(|| ParseError::new(
-                                "expected imported item name",
-                                parser.inner.location,
-                            )),
-                    )?;
-                    parser.inner.expect('}')?;
-
-                    for ident in inner {
-                        if items.contains(&ident) {
-                            return Err(ParseError::new_spanned(
-                                format!("duplicate import item {:?}", ident),
-                                ident.location,
-                                ident.length,
-                            ));
-                        }
-
-                        if parser.imported_names.contains(&ident) {
-                            return Err(ParseError::new_spanned(
-                                format!("item with name already imported! {:?}", ident),
-                                ident.location,
-                                ident.length,
-                            ));
-                        }
-
-                        items.insert(ident.clone());
-                        parser.imported_names.insert(ident);
-                    }
-
-                    break;
-                }
-
-                let mut link = parser.parse_ident()
+            loop {
+                let ident = parser.parse_ident()
                     .ok_or_else(|| ParseError::new(
-                        "expected import item",
+                        "Expected path-link in import path",
                         parser.inner.location,
                     ))?;
-                swap(&mut name, &mut link);
-                path.push(link);
+
+                if parser.inner.take('/') {
+                    path.push_back(ident);
+                    continue;
+                }
+
+                let mut file_path = String::new();
+                if !parser.inner.take('.') {
+                    file_path.push_str(&ident);
+                } else {
+                    file_path.push_str(&ident);
+                    file_path.push('.');
+                    loop {
+                        let extension = parser.parse_ident()
+                            .ok_or_else(|| ParseError::new(
+                                "expected extension after '.' in import path",
+                                parser.inner.location,
+                            ))?;
+                        file_path.push_str(&extension);
+
+                        if !parser.inner.take('.') {
+                            break;
+                        }
+                    }
+                }
+
+                let file = Ident {
+                    value: file_path,
+                    location: ident.location,
+                    length: parser.inner.location.index - ident.location.index,
+                };
+                return Ok((path, file));
+            }
+        })?;
+
+        let uses = if self.take_keyword("use") {
+            let mut names = HashSet::new();
+
+            let Some(ident) = self.parse_ident() else {
+                return Err(ParseError::new(
+                    "Expected item name after 'use'",
+                    self.inner.location,
+                ));
+            };
+            names.insert(ident);
+
+            while self.inner.take(',') {
+                let Some(ident) = self.parse_ident() else {
+                    return Err(ParseError::new(
+                        "Expected item name in 'use' list",
+                        self.inner.location,
+                    ));
+                };
+                names.insert(ident);
             }
 
-            if items.is_empty() {
-                items.insert(name);
-            } else {
-                path.push(name);
-            }
+            Some(names)
+        } else {
+            None
+        };
 
-            Ok(Some(Import {
-                path,
-                items,
-            }))
-        })
+        Ok(Some(Import {
+            path,
+            file,
+            uses,
+        }))
     }
 }
 
@@ -453,9 +463,9 @@ pub enum Section {
 
 #[derive(Debug)]
 pub struct HtmlElement {
-    name: Ident,
-    attributes: Vec<(Ident, Option<AttributeValue>)>,
-    body: Option<Vec<Section>>,
+    pub name: Ident,
+    pub attributes: Vec<(Ident, Option<AttributeValue>)>,
+    pub body: Option<Vec<Section>>,
 }
 
 #[derive(Debug)]
@@ -689,7 +699,7 @@ impl<'a> SimplParser<'a> {
             self.inner.expect("</>")?;
             Ok(Expr::Html(html))
         } else if let Some(html) = self.parse_html_element()? {
-            Ok(Expr::Html(vec![ Section::Element(html) ]))
+            Ok(Expr::Html(vec![Section::Element(html)]))
         } else {
             Err(ParseError::new("expected primary expression", self.inner.location))
         };

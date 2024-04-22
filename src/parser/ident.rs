@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cmp::Ordering;
+use std::ffi::OsStr;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -98,6 +99,12 @@ impl AsRef<String> for Ident {
 impl AsRef<str> for Ident {
     fn as_ref(&self) -> &str {
         self.value.as_str()
+    }
+}
+
+impl AsRef<OsStr> for Ident {
+    fn as_ref(&self) -> &OsStr {
+        self.value.as_ref()
     }
 }
 

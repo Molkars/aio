@@ -1,13 +1,20 @@
 SimplFile {
     imports: [
         Import {
+            path: [],
+            file: "head.simp",
+            uses: Some(
+                {
+                    "head",
+                },
+            ),
+        },
+        Import {
             path: [
-                "view",
-                "head",
+                "util",
             ],
-            items: {
-                "head",
-            },
+            file: "util.simp",
+            uses: None,
         },
     ],
     statements: [
